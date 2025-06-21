@@ -1,0 +1,9 @@
+> cd D:\GitHub\facetorch
+
+Befehle im docker cointainer direkt ausführen ohne im docker zu sein (z.B. ./scripts/example.py)
+> docker compose run --rm --entrypoint python facetorch-gpu ./scripts/example.py analyzer.device=cuda
+
+in den contaien reinsteigen und bash starten: 
+> docker run -it --rm --gpus all -v ./data:/app/data facetorch-facetorch-gpu /bin/bash
+script ausfphren
+> ./scripts/example.py
