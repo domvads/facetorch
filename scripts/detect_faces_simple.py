@@ -5,6 +5,7 @@ from typing import List, Optional
 import json
 
 import torchvision
+from PIL import ImageDraw
 
 import torch
 from omegaconf import OmegaConf
@@ -110,6 +111,19 @@ def detect_faces(
     num_persons = len(clusters)
     print(f"Persons detected: {num_persons}")
 
+    # compute distance from cluster center for each face and print cluster similarity tables
+    face_distance = {}
+    for c_idx, cluster in enumerate(clusters):
+        c_embeds = torch.stack([embeds[i] for i in cluster])
+        centroid = c_embeds.mean(dim=0)
+        dists = torch.norm(c_embeds - centroid, dim=1)
+        for j, face_idx in enumerate(cluster):
+            face_distance[face_idx] = dists[j].item()
+        sim_matrix = torch.cdist(c_embeds, c_embeds)
+        print(f"Cluster {c_idx} similarity matrix:")
+        for row in sim_matrix:
+            print(" ".join(f"{val:.4f}" for val in row.tolist()))
+
     if json_path:
 
         def serialize(obj):
@@ -129,9 +143,17 @@ def detect_faces(
             json.dump(out, f, indent=2)
 
     if montage_path and len(response.faces) > 0:
-        face_tensors = [
-            face.tensor.cpu() for face in response.faces if face.tensor.nelement() > 0
-        ]
+        face_tensors = []
+        for idx, face in enumerate(response.faces):
+            if face.tensor.nelement() == 0:
+                continue
+            tensor = face.tensor.cpu()
+            if idx in face_distance:
+                pil_img = torchvision.transforms.functional.to_pil_image(tensor)
+                draw = ImageDraw.Draw(pil_img)
+                draw.text((2, 2), f"{face_distance[idx]:.2f}", fill=(255, 0, 0))
+                tensor = torchvision.transforms.functional.to_tensor(pil_img)
+            face_tensors.append(tensor)
         if face_tensors:
             grid = torchvision.utils.make_grid(
                 face_tensors, nrow=min(8, len(face_tensors))
@@ -142,11 +164,17 @@ def detect_faces(
 
         montage_file = Path(montage_path)
         for idx, cluster in enumerate(clusters):
-            cluster_tensors = [
-                response.faces[i].tensor.cpu()
-                for i in cluster
-                if response.faces[i].tensor.nelement() > 0
-            ]
+            cluster_tensors = []
+            for i in cluster:
+                if response.faces[i].tensor.nelement() == 0:
+                    continue
+                tensor = response.faces[i].tensor.cpu()
+                if i in face_distance:
+                    pil_img = torchvision.transforms.functional.to_pil_image(tensor)
+                    draw = ImageDraw.Draw(pil_img)
+                    draw.text((2, 2), f"{face_distance[i]:.2f}", fill=(255, 0, 0))
+                    tensor = torchvision.transforms.functional.to_tensor(pil_img)
+                cluster_tensors.append(tensor)
             if not cluster_tensors:
                 continue
             grid = torchvision.utils.make_grid(
