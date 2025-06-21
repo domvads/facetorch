@@ -12,7 +12,7 @@ services:
     entrypoint: [ "/bin/bash" ]
 
   facetorch-gpu:
-#    image: tomasgajarsky/facetorch-gpu:latest
+    image: tomasgajarsky/facetorch-gpu:latest
     platform: linux/amd64
     build:
       context: .
