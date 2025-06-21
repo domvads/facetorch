@@ -1,6 +1,8 @@
 import argparse
 from pathlib import Path
-from typing import List
+from typing import List, Optional
+
+import torchvision
 
 import torch
 from omegaconf import OmegaConf
@@ -27,6 +29,7 @@ def detect_faces(
     output_path: str,
     verbose: bool = False,
     compare: bool = False,
+    montage_path: Optional[str] = None,
 ) -> None:
     """Run face detection on a single image.
 
@@ -36,6 +39,8 @@ def detect_faces(
         Path to the image that should be processed.
     output_path: str
         Where the resulting image with drawn detections is saved.
+    montage_path: Optional[str]
+        If provided, saves a thumbnail montage of all detected faces to this path.
     """
     cfg = load_config()
     analyzer = FaceAnalyzer(cfg.analyzer)
@@ -65,6 +70,18 @@ def detect_faces(
         else:
             print("No embeddings available for comparison")
 
+    if montage_path and len(response.faces) > 0:
+        face_tensors = [
+            face.tensor.cpu() for face in response.faces if face.tensor.nelement() > 0
+        ]
+        if face_tensors:
+            grid = torchvision.utils.make_grid(
+                face_tensors, nrow=min(8, len(face_tensors))
+            )
+            img = torchvision.transforms.functional.to_pil_image(grid)
+            Path(montage_path).parent.mkdir(parents=True, exist_ok=True)
+            img.save(montage_path)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Detect faces in a single image")
@@ -92,5 +109,17 @@ if __name__ == "__main__":
         action="store_true",
         help="Compare embeddings of detected faces",
     )
+    parser.add_argument(
+        "--montage",
+        "-m",
+        default="data/output/montage.png",
+        help="Path for saving the montage of detected faces",
+    )
     args = parser.parse_args()
-    detect_faces(args.image, args.output, verbose=args.verbose, compare=args.compare)
+    detect_faces(
+        args.image,
+        args.output,
+        verbose=args.verbose,
+        compare=args.compare,
+        montage_path=args.montage,
+    )
