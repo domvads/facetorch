@@ -104,9 +104,11 @@ def detect_faces(
                 ]
                 stack.extend(neighbors)
             clusters.append(cluster)
-        print("Clusters (threshold=0.6):")
-        for idx, c in enumerate(clusters):
-            print(f"  Cluster {idx}: {c}")
+    elif len(embeds) == 1:
+        clusters.append([0])
+
+    num_persons = len(clusters)
+    print(f"Persons detected: {num_persons}")
 
     if json_path:
 
@@ -137,6 +139,25 @@ def detect_faces(
             img = torchvision.transforms.functional.to_pil_image(grid)
             Path(montage_path).parent.mkdir(parents=True, exist_ok=True)
             img.save(montage_path)
+
+        montage_file = Path(montage_path)
+        for idx, cluster in enumerate(clusters):
+            cluster_tensors = [
+                response.faces[i].tensor.cpu()
+                for i in cluster
+                if response.faces[i].tensor.nelement() > 0
+            ]
+            if not cluster_tensors:
+                continue
+            grid = torchvision.utils.make_grid(
+                cluster_tensors, nrow=min(8, len(cluster_tensors))
+            )
+            img = torchvision.transforms.functional.to_pil_image(grid)
+            cluster_path = montage_file.with_name(
+                f"{montage_file.stem}_cluster_{idx}{montage_file.suffix}"
+            )
+            cluster_path.parent.mkdir(parents=True, exist_ok=True)
+            img.save(cluster_path)
 
 
 if __name__ == "__main__":
@@ -169,7 +190,9 @@ if __name__ == "__main__":
         "--montage",
         "-m",
         default="data/output/montage.png",
-        help="Path for saving the montage of detected faces",
+        help="Path for saving the montage of detected faces. Individual"
+             " person montages will be saved with an appended '_cluster_X'"
+             " before the file suffix.",
     )
     parser.add_argument(
         "--json",
