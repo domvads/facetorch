@@ -1,5 +1,8 @@
 import argparse
 from pathlib import Path
+from typing import List
+
+import torch
 from omegaconf import OmegaConf
 from facetorch import FaceAnalyzer
 
@@ -19,7 +22,12 @@ def load_config() -> OmegaConf:
     return OmegaConf.load(config_file)
 
 
-def detect_faces(image_path: str, output_path: str) -> None:
+def detect_faces(
+    image_path: str,
+    output_path: str,
+    verbose: bool = False,
+    compare: bool = False,
+) -> None:
     """Run face detection on a single image.
 
     Parameters
@@ -39,7 +47,23 @@ def detect_faces(image_path: str, output_path: str) -> None:
         include_tensors=cfg.include_tensors,
         path_output=output_path,
     )
-    print(response)
+    if verbose:
+        print(response)
+
+    if compare and len(response.faces) > 1:
+        embeds: List[torch.Tensor] = []
+        for face in response.faces:
+            if "embed" in face.preds:
+                embeds.append(face.preds["embed"].logits)
+
+        if len(embeds) > 1:
+            embed_tensor = torch.stack(embeds)
+            dists = torch.cdist(embed_tensor, embed_tensor)
+            print("Pairwise embedding distances:")
+            for row in dists:
+                print(" ".join(f"{val:.4f}" for val in row.tolist()))
+        else:
+            print("No embeddings available for comparison")
 
 
 if __name__ == "__main__":
@@ -56,5 +80,17 @@ if __name__ == "__main__":
         default="data/output/detected.png",
         help="Path for saving the output image",
     )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Print analyzer response",
+    )
+    parser.add_argument(
+        "--compare",
+        "-c",
+        action="store_true",
+        help="Compare embeddings of detected faces",
+    )
     args = parser.parse_args()
-    detect_faces(args.image, args.output)
+    detect_faces(args.image, args.output, verbose=args.verbose, compare=args.compare)
