@@ -1,11 +1,22 @@
 import argparse
+from pathlib import Path
 from omegaconf import OmegaConf
 from facetorch import FaceAnalyzer
 
 
-def load_config():
-    """Load the default merged configuration."""
-    return OmegaConf.load("conf/my_config.yaml")
+def load_config() -> OmegaConf:
+    """Load the fully merged default configuration.
+
+    This script is executed outside of Hydra's runtime which normally resolves
+    the ``defaults`` list contained in ``conf/config.yaml``.  Using
+    :func:`~omegaconf.OmegaConf.load` on that file would therefore result in a
+    configuration object that is missing the ``analyzer`` section.  To mimic the
+    behaviour of Hydra without pulling in the full dependency we directly load
+    the pre-generated configuration found under ``conf/merged``.
+    """
+
+    config_file = Path(__file__).resolve().parents[1] / "conf" / "merged" / "merged.config.yaml"
+    return OmegaConf.load(config_file)
 
 
 def detect_faces(image_path: str, output_path: str) -> None:
