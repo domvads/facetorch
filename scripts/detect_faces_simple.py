@@ -5,7 +5,7 @@ from facetorch import FaceAnalyzer
 
 def load_config():
     """Load the default merged configuration."""
-    return OmegaConf.load("conf/merged/merged.config.yaml")
+    return OmegaConf.load("conf/my_config.yaml")
 
 
 def detect_faces(image_path: str, output_path: str) -> None:
