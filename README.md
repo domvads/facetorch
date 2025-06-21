@@ -61,6 +61,7 @@ python scripts/detect_faces_simple.py --image <path_to_image> --montage data/out
 ```
 
 Check *data/output* for resulting images with bounding boxes and facial 3D landmarks.
+Each face thumbnail now displays its distance to the cluster center and a similarity matrix for each cluster is printed on the command line.
 
 (Apple Mac M1) Use Rosetta 2 emulator in Docker Desktop to run the CPU version.
 
