@@ -37,7 +37,7 @@ def detect_faces(
     montage_path: Optional[str] = None,
     json_path: Optional[str] = None,
 ) -> None:
-"""Run face detection on a single image or all images in a folder.
+    """Run face detection on a single image or all images in a folder.
 
     Parameters
     ----------
