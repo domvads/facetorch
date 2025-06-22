@@ -41,6 +41,10 @@ pip install facetorch
 ```bash
 conda install -c conda-forge facetorch
 ```
+For a development setup clone this repository and run:
+```bash
+./setup.sh
+```
 ## Usage
 
 ### Prerequisites
