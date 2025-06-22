@@ -54,10 +54,11 @@ Docker Compose provides an easy way of building a working facetorch environment 
 * CPU: ```docker compose run facetorch python ./scripts/example.py```
 * GPU: ```docker compose run facetorch-gpu python ./scripts/example.py analyzer.device=cuda```
 
-To generate montages of detected faces per person run:
+To generate montages of detected faces per person run. ``--image`` can be a
+single file or a directory containing multiple images:
 
 ```bash
-python scripts/detect_faces_simple.py --image <path_to_image> --montage data/output/montage.png
+python scripts/detect_faces_simple.py --image <path_or_folder> --output data/output --montage data/output/montage.png
 ```
 
 Check *data/output* for resulting images with bounding boxes and facial 3D landmarks.
