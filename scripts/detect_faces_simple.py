@@ -37,14 +37,17 @@ def detect_faces(
     montage_path: Optional[str] = None,
     json_path: Optional[str] = None,
 ) -> None:
-    """Run face detection on a single image.
+"""Run face detection on a single image or all images in a folder.
 
     Parameters
     ----------
     image_path: str
-        Path to the image that should be processed.
+        Path to the image that should be processed. If a directory is provided
+        all images in that directory will be processed.
     output_path: str
-        Where the resulting image with drawn detections is saved.
+        Where the resulting image with drawn detections is saved. If
+        ``image_path`` is a directory this should also point to a directory
+        where per-image outputs are written.
     montage_path: Optional[str]
         If provided, saves a thumbnail montage of all detected faces to this path.
     json_path: Optional[str]
@@ -52,24 +55,53 @@ def detect_faces(
     """
     cfg = load_config()
     analyzer = FaceAnalyzer(cfg.analyzer)
-    response = analyzer.run(
-        path_image=image_path,
-        batch_size=cfg.batch_size,
-        fix_img_size=cfg.fix_img_size,
-        return_img_data=cfg.return_img_data,
-        include_tensors=cfg.include_tensors,
-        path_output=output_path,
-    )
-    if response.img.nelement() > 0:
-        img = torchvision.transforms.functional.to_pil_image(response.img.cpu())
-        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-        img.save(output_path)
-    if verbose:
-        print(response)
 
-    embeds: List[torch.Tensor] = [
-        face.preds["embed"].logits for face in response.faces if "embed" in face.preds
-    ]
+    img_path = Path(image_path)
+    out_path = Path(output_path)
+    responses = []
+
+    img_files = [img_path]
+    if img_path.is_dir():
+        img_files = []
+        for ext in ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tif", "*.tiff"):
+            img_files.extend(sorted(img_path.glob(ext)))
+
+    for img_file in img_files:
+        if img_path.is_dir():
+            if out_path.is_dir() or out_path.suffix == "":
+                output_file = out_path / f"{img_file.stem}_detected{img_file.suffix}"
+            else:
+                output_file = out_path.parent / f"{img_file.stem}_detected{img_file.suffix}"
+        else:
+            output_file = out_path
+
+        response = analyzer.run(
+            path_image=str(img_file),
+            batch_size=cfg.batch_size,
+            fix_img_size=cfg.fix_img_size,
+            return_img_data=cfg.return_img_data,
+            include_tensors=cfg.include_tensors,
+            path_output=str(output_file),
+        )
+
+        if response.img.nelement() > 0:
+            img = torchvision.transforms.functional.to_pil_image(response.img.cpu())
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            img.save(output_file)
+
+        responses.append(response)
+
+    if verbose:
+        for resp in responses:
+            print(resp)
+
+    embeds: List[torch.Tensor] = []
+    all_faces = []
+    for resp in responses:
+        for f in resp.faces:
+            all_faces.append(f)
+            if "embed" in f.preds:
+                embeds.append(f.preds["embed"].logits)
 
     if compare and len(embeds) > 1:
         embed_tensor = torch.stack(embeds)
@@ -136,15 +168,15 @@ def detect_faces(
             else:
                 return obj
 
-        faces_data = [serialize(asdict(face)) for face in response.faces]
+        faces_data = [serialize(asdict(face)) for face in all_faces]
         out = {"faces": faces_data, "clusters": clusters}
         Path(json_path).parent.mkdir(parents=True, exist_ok=True)
         with open(json_path, "w") as f:
             json.dump(out, f, indent=2)
 
-    if montage_path and len(response.faces) > 0:
+    if montage_path and len(all_faces) > 0:
         face_tensors = []
-        for idx, face in enumerate(response.faces):
+        for idx, face in enumerate(all_faces):
             if face.tensor.nelement() == 0:
                 continue
             tensor = face.tensor.cpu()
@@ -166,9 +198,9 @@ def detect_faces(
         for idx, cluster in enumerate(clusters):
             cluster_tensors = []
             for i in cluster:
-                if response.faces[i].tensor.nelement() == 0:
+                if all_faces[i].tensor.nelement() == 0:
                     continue
-                tensor = response.faces[i].tensor.cpu()
+                tensor = all_faces[i].tensor.cpu()
                 if i in face_distance:
                     pil_img = torchvision.transforms.functional.to_pil_image(tensor)
                     draw = ImageDraw.Draw(pil_img)
@@ -189,18 +221,18 @@ def detect_faces(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Detect faces in a single image")
+    parser = argparse.ArgumentParser(description="Detect faces in an image or folder")
     parser.add_argument(
         "--image",
         "-i",
         default="data/input/test.jpg",
-        help="Path to an image file",
+        help="Path to an image file or directory",
     )
     parser.add_argument(
         "--output",
         "-o",
         default="data/output/detected.png",
-        help="Path for saving the output image",
+        help="Path for saving the output image or directory for multiple inputs",
     )
     parser.add_argument(
         "--verbose",
